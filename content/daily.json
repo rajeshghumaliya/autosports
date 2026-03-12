@@ -1,30 +1,45 @@
 {
   "title": "VIRAT KOHLI'S ENGLAND MASTERCLASS - The ABSOLUTE REDEMPTION! 🔥🔥🔥",
   "hook": "The KING returns in ENGLAND and England's bowlers had NO IDEA what was coming... 😱",
-  "segments": [
+  "facts": [
     {
-      "time": "0-12s",
-      "text": "After YEARS of WAITING... after ALL the doubts... Virat Kohli WALKS UP! Look at that FACE! 🔥",
+      "rank": 5,
+      "heading": "The Arrival",
+      "player": "kohli",
+      "text": "After YEARS of WAITING... after ALL the doubts... Virat Kohli WALKS UP! Look at that FACE!",
+      "highlight": "The King Returns",
       "emoji": "🔥"
     },
     {
-      "time": "12-24s",
-      "text": "This is NOT just batting! This is REVENGE CRICKET! Watch his FOCUS! His INTENSITY! Every shot is HIT WITH PURPOSE! 💪",
+      "rank": 4,
+      "heading": "Revenge Cricket",
+      "player": "kohli",
+      "text": "This is NOT just batting! This is REVENGE CRICKET! Watch his FOCUS! His INTENSITY! Every shot is HIT WITH PURPOSE!",
+      "highlight": "Pure Intensity",
       "emoji": "💪"
     },
     {
-      "time": "24-36s",
-      "text": "DRIVES like MISSILES! CUTS splitting FIELDERS! England's bowlers are SWEATING! The crowd's going ABSOLUTELY MENTAL! 😱",
+      "rank": 3,
+      "heading": "Shot Making Masterclass",
+      "player": "kohli",
+      "text": "DRIVES like MISSILES! CUTS splitting FIELDERS! England's bowlers are SWEATING! The crowd's going ABSOLUTELY MENTAL!",
+      "highlight": "Batting Brilliance",
       "emoji": "⚡"
     },
     {
-      "time": "36-48s",
-      "text": "This is the COMEBACK we've been WAITING FOR! This is CINEMA! This is LEGACY! Watch him RECLAIM HIS THRONE! 👑",
+      "rank": 2,
+      "heading": "The Comeback Cinema",
+      "player": "kohli",
+      "text": "This is the COMEBACK we've been WAITING FOR! This is CINEMA! This is LEGACY! Watch him RECLAIM HIS THRONE!",
+      "highlight": "Legacy Moment",
       "emoji": "👑"
     },
     {
-      "time": "48-60s",
-      "text": "THAT'S what happens when a CHAMPION comes BACK! THIS is why Virat Kohli is the GREATEST! 🏆 Like and Subscribe NOW! 🔥",
+      "rank": 1,
+      "heading": "The Greatest",
+      "player": "kohli",
+      "text": "THAT'S what happens when a CHAMPION comes BACK! THIS is why Virat Kohli is the GREATEST!",
+      "highlight": "Champion Returns",
       "emoji": "🏆"
     }
   ],
