@@ -9,9 +9,13 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "outDir": "./dist",
-    "baseUrl": "."
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "paths": {
+      "./components/*": ["./src/components/*"]
+    },
+    "baseUrl": "src"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "content/**/*"],
   "exclude": ["node_modules", "dist"]
 }
