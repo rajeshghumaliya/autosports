@@ -53,7 +53,19 @@ export const Background: React.FC<BackgroundProps> = ({ player }) => {
     [0.7, 0.85]
   );
 
-  const clipPath = `clips/${player}/clip1.mp4`;
+  const [videoError, setVideoError] = React.useState(false);
+  
+  // Clean up player name for mapping or fallback
+  const normalizedPlayer = player.toLowerCase().trim();
+  let defaultClipPath = `clips/${normalizedPlayer}/1.mp4`;
+  
+  // Map our known daily.json 'kohli' or 'generic' to the actual folder we have
+  if (normalizedPlayer === "kohli" || normalizedPlayer === "generic") {
+    defaultClipPath = "clips/virat kohli/1.mp4";
+  }
+
+  // If the specific video fails to load, fallback to our known good video
+  const FALLBACK_VIDEO = "clips/virat kohli/1.mp4";
 
   return (
     <AbsoluteFill>
@@ -66,7 +78,7 @@ export const Background: React.FC<BackgroundProps> = ({ player }) => {
         }}
       >
         <Video
-          src={staticFile(clipPath)}
+          src={staticFile(videoError ? FALLBACK_VIDEO : defaultClipPath)}
           style={{
             width: "100%",
             height: "100%",
@@ -75,6 +87,7 @@ export const Background: React.FC<BackgroundProps> = ({ player }) => {
           startFrom={0}
           volume={0}
           playbackRate={0.7}
+          onError={() => setVideoError(true)}
         />
       </AbsoluteFill>
 
