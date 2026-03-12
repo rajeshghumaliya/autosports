@@ -80,12 +80,18 @@ async function callGemini(content) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not set!");
 
+const items = content.facts || content.segments || [];
+  const contentString = items.map((f, i) => {
+    if (f.heading) return `#${f.rank}: ${f.heading} - ${f.text}`;
+    return `Segment ${i + 1}: ${f.text}`;
+  }).join("\n");
+
   const prompt = `You are a creative director for viral YouTube Shorts cricket videos. Based on this content, decide the visual style for each section. Return ONLY valid JSON with no markdown.
 
 CONTENT:
 Title: ${content.title}
 Hook: ${content.hook}
-Facts: ${content.facts.map((f, i) => `#${f.rank}: ${f.heading} - ${f.text}`).join("\n")}
+Content items: ${contentString}
 
 Available options:
 - animations: ${ANIMATIONS.join(", ")}
@@ -101,24 +107,26 @@ Return this JSON structure:
   "hookIcon": "pick icon for hook",
   "facts": [
     {
-      "animation": "pick DIFFERENT animation for each fact",
-      "transition": "pick DIFFERENT transition for each fact",
+      "heading": "write a 2-3 word punchy heading summarizing the text",
+      "highlight": "write 1-3 words to display HUGE on screen (e.g. '100 MPH', 'THE KING', 'REVENGE')",
+      "animation": "pick DIFFERENT animation for each item",
+      "transition": "pick DIFFERENT transition for each item",
       "icon": "pick MOST FITTING premium icon",
-      "voiceEmotion": "pick emotion based on fact content"
+      "voiceEmotion": "pick emotion based on text content"
     }
   ],
   "outroAnimation": "pick animation for outro",
   "narrationTransitions": [
-    "write a unique 5-8 word dramatic transition phrase for each fact, like 'But wait, this next one is insane...' or 'You won't believe number three...'"
+    "write a unique 5-8 word dramatic transition phrase for each item, like 'But wait, this next one is insane...' or 'You won't believe number three...'"
   ]
 }
 
 Rules:
 - NEVER use the same animation twice in a row
 - NEVER use the same transition twice in a row
-- Make #1 fact always "dramatic" voiceEmotion
+- Make #1 or last item always "dramatic" voiceEmotion
 - Make hook always "hook" voiceEmotion
-- Each icon must match the fact content (use "crown" for records, "bolt" for speed, "fire" for fierce, "trophy" for achievements, etc.)
+- Each icon must match the content (use "crown" for records, "bolt" for speed, etc.)
 - Make narration transitions viral and binge-worthy`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -171,18 +179,21 @@ function generateRandomStyle(content) {
     "The number one will blow your mind!"
   ];
 
+  const items = content.facts || content.segments || [];
   return {
     theme: themeKeys[Math.floor(Math.random() * themeKeys.length)],
     hookAnimation: anims[0],
     hookIcon: "fire",
-    facts: content.facts.map((_, i) => ({
+    facts: items.map((_, i) => ({
+      heading: `Part ${i + 1}`,
+      highlight: `WOW`,
       animation: anims[(i + 1) % anims.length],
       transition: trans[i % trans.length],
       icon: iconKeys[i % iconKeys.length],
-      voiceEmotion: i === content.facts.length - 1 ? "dramatic" : emotionKeys[(i + 2) % emotionKeys.length],
+      voiceEmotion: i === items.length - 1 ? "dramatic" : emotionKeys[(i + 2) % emotionKeys.length],
     })),
     outroAnimation: anims[anims.length - 1],
-    narrationTransitions: content.facts.map((_, i) => transitions[i % transitions.length]),
+    narrationTransitions: items.map((_, i) => transitions[i % transitions.length]),
   };
 }
 
@@ -193,7 +204,8 @@ async function main() {
 
   const content = JSON.parse(fs.readFileSync(CONTENT_PATH, "utf-8"));
   console.log(`📄 Title: ${content.title}`);
-  console.log(`📊 Facts: ${content.facts.length}\n`);
+  const items = content.facts || content.segments || [];
+  console.log(`📊 Items: ${items.length}\n`);
 
   let styleDirectives;
 
@@ -224,10 +236,15 @@ async function main() {
     themeColors: THEMES[styleDirectives.theme],
     hookAnimation: styleDirectives.hookAnimation || "zoomIn",
     hookIcon: styleDirectives.hookIcon || "fire",
-    facts: content.facts.map((fact, i) => {
+    facts: items.map((item, i) => {
       const directive = styleDirectives.facts[i] || {};
       return {
-        ...fact,
+        ...item,
+        rank: item.rank || items.length - i,
+        heading: directive.heading || item.heading || `Part ${i + 1}`,
+        player: item.player || "generic",
+        text: item.text,
+        highlight: directive.highlight || item.highlight || "WOW",
         animation: ANIMATIONS.includes(directive.animation) ? directive.animation : ANIMATIONS[i % ANIMATIONS.length],
         transition: TRANSITIONS.includes(directive.transition) ? directive.transition : TRANSITIONS[i % TRANSITIONS.length],
         icon: ICONS[directive.icon] ? directive.icon : "star",
@@ -237,6 +254,7 @@ async function main() {
     }),
     outroAnimation: styleDirectives.outroAnimation || "fadeUp",
   };
+  delete styled.segments; // remove segments so other scripts only see facts
 
   // Write styled content
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(styled, null, 2));

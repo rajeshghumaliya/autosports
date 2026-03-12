@@ -61,9 +61,10 @@ async function main() {
   // Load content
   const contentPath = fs.existsSync(STYLED_PATH) ? STYLED_PATH : DAILY_PATH;
   const content = JSON.parse(fs.readFileSync(contentPath, "utf-8"));
+  const items = content.facts || content.segments || [];
   console.log(`\n📄 Title: ${content.title}`);
   console.log(`🎨 Theme: ${content.theme || "default"}`);
-  console.log(`📊 Facts: ${content.facts.length}`);
+  console.log(`📊 Items: ${items.length}`);
   console.log(`📅 Date: ${getDateStr()}`);
 
   // Audio timing
@@ -88,7 +89,7 @@ async function main() {
   if (hasAudio) {
     totalDurationSec = Math.ceil(audioTimings.totalDuration) + 1;
   } else {
-    totalDurationSec = HOOK_SECONDS + content.facts.length * SECONDS_PER_FACT + OUTRO_SECONDS;
+    totalDurationSec = HOOK_SECONDS + items.length * SECONDS_PER_FACT + OUTRO_SECONDS;
   }
 
   const totalFrames = totalDurationSec * FPS;

@@ -40,7 +40,8 @@ interface Fact {
 interface ContentData {
   title: string;
   hook: string;
-  facts: Fact[];
+  facts?: Fact[];
+  segments?: { time: string; text: string; emoji: string }[];
   outro: string;
   theme?: string;
   themeColors?: ThemeColors;
@@ -83,6 +84,16 @@ export const CricketVideo: React.FC<CricketVideoProps> = ({
     glow: "rgba(255,215,0,0.6)",
   };
 
+  const items: Fact[] = content.facts || (content.segments ? content.segments.map((s, i, arr) => ({
+    rank: arr.length - i,
+    heading: `Part ${i + 1}`,
+    player: "generic",
+    text: s.text,
+    highlight: s.emoji || "WOW",
+    emoji: s.emoji,
+    icon: "star"
+  })) as Fact[] : []);
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#0a0a0a" }}>
       {/* === PROGRESS BAR === */}
@@ -99,8 +110,8 @@ export const CricketVideo: React.FC<CricketVideoProps> = ({
         />
       </Sequence>
 
-      {/* === FACTS === */}
-      {content.facts.map((fact, index) => {
+      {/* === FACTS / SEGMENTS === */}
+      {items.map((fact, index) => {
         const factStart = hookFrames + index * factFrames;
         return (
           <React.Fragment key={index}>
@@ -116,16 +127,16 @@ export const CricketVideo: React.FC<CricketVideoProps> = ({
 
             <Sequence from={factStart} durationInFrames={factFrames}>
               {/* Player-specific background */}
-              <Background player={fact.player} />
+              <Background player={fact.player || "generic"} />
 
               {/* Fact card with dynamic animation + icon */}
               <FactCard
                 rank={fact.rank}
-                heading={fact.heading}
+                heading={fact.heading || `Part ${index + 1}`}
                 text={fact.text}
-                highlight={fact.highlight}
+                highlight={fact.highlight || fact.emoji || "🔥"}
                 icon={fact.icon || "star"}
-                totalFacts={content.facts.length}
+                totalFacts={items.length}
                 animation={fact.animation || "fadeUp"}
                 themeColors={themeColors}
               />
@@ -139,7 +150,7 @@ export const CricketVideo: React.FC<CricketVideoProps> = ({
 
       {/* === OUTRO === */}
       <Sequence
-        from={hookFrames + content.facts.length * factFrames}
+        from={hookFrames + items.length * factFrames}
         durationInFrames={outroFrames}
       >
         <Background player="generic" />

@@ -70,28 +70,31 @@ function buildNarrationSegments(content) {
     "And the number one spot goes to...",
   ];
 
-  content.facts.forEach((fact, i) => {
-    const isLast = i === content.facts.length - 1;
+  const items = content.facts || content.segments || [];
+  
+  items.forEach((item, i) => {
+    const isLast = i === items.length - 1;
 
     // Use AI-generated narration transition if available
-    const transition = fact.narrationTransition
-      ? fact.narrationTransition
+    const transition = item.narrationTransition
+      ? item.narrationTransition
       : isLast
         ? defaultTransitions[defaultTransitions.length - 1]
-        : `${defaultTransitions[i % (defaultTransitions.length - 1)]} ${fact.rank}.`;
+        : `${defaultTransitions[i % (defaultTransitions.length - 1)]} ${item.rank || items.length - i}.`;
 
     // Use AI voice emotions if available, otherwise defaults
-    const voiceSettings = fact.voiceEmotion && typeof fact.voiceEmotion === "object"
-      ? { ...fact.voiceEmotion, use_speaker_boost: true }
+    const voiceSettings = item.voiceEmotion && typeof item.voiceEmotion === "object"
+      ? { ...item.voiceEmotion, use_speaker_boost: true }
       : isLast
         ? { stability: 0.2, similarity_boost: 0.9, style: 1.0, use_speaker_boost: true }
         : { stability: 0.4, similarity_boost: 0.8, style: 0.6, use_speaker_boost: true };
 
+    const headingPart = item.heading ? `${item.heading}. ` : "";
     segments.push({
       id: `fact-${i}`,
-      text: `${transition} ${fact.heading}. ${fact.text}`,
+      text: `${transition} ${headingPart}${item.text}`,
       type: "fact",
-      rank: fact.rank,
+      rank: item.rank || items.length - i,
       voiceSettings,
     });
   });
@@ -166,9 +169,10 @@ async function main() {
 
   const content = JSON.parse(fs.readFileSync(CONTENT_PATH, "utf-8"));
   const isStyled = CONTENT_PATH.includes("styled");
+  const items = content.facts || content.segments || [];
   console.log(`📄 Source: ${isStyled ? "styled.json (AI-enriched)" : "daily.json (manual)"}`);
   console.log(`📄 Title: ${content.title}`);
-  console.log(`📊 Facts: ${content.facts.length}`);
+  console.log(`📊 Items: ${items.length}`);
 
   const segments = buildNarrationSegments(content);
   console.log(`🎬 Segments: ${segments.length}\n`);
