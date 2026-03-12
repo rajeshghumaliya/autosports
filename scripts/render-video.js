@@ -2,14 +2,10 @@
  * render-video.js
  * ----------------
  * Full pipeline orchestrator:
- *  1. Generate audio (ElevenLabs TTS)
- *  2. Bundle Remotion project
- *  3. Render video
- *  4. Merge audio + video with ffmpeg
- *
- * Usage:
- *   node scripts/render-video.js
- *   node scripts/render-video.js --skip-audio   (skip TTS, use existing audio)
+ *  1. Generate AI style (Gemini) → styled.json
+ *  2. Generate audio (ElevenLabs TTS)
+ *  3. Render video (Remotion)
+ *  4. Merge audio + video (ffmpeg)
  */
 
 import { execSync } from "child_process";
@@ -21,14 +17,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..");
 
-// ─── Config ──────────────────────────────────────────────────
 const COMPOSITION_ID = "CricketShorts";
 const OUTPUT_DIR = path.join(ROOT, "output");
 const AUDIO_DIR = path.join(ROOT, "public", "audio");
-const CONTENT_PATH = path.join(ROOT, "content", "daily.json");
+const STYLED_PATH = path.join(ROOT, "content", "styled.json");
+const DAILY_PATH = path.join(ROOT, "content", "daily.json");
 const SKIP_AUDIO = process.argv.includes("--skip-audio");
+const SKIP_STYLE = process.argv.includes("--skip-style");
 
-// ─── Helpers ─────────────────────────────────────────────────
 function run(cmd, label) {
   console.log(`\n${"━".repeat(50)}`);
   console.log(`📦 ${label}`);
@@ -42,114 +38,104 @@ function getDateStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// ─── Main Pipeline ───────────────────────────────────────────
 async function main() {
-  console.log("🏏 Cricket Shorts — Video Render Pipeline");
+  console.log("🏏 Cricket Shorts — Full Render Pipeline");
   console.log("═".repeat(50));
 
-  // Ensure output dir
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  // Load content for logging
-  const content = JSON.parse(fs.readFileSync(CONTENT_PATH, "utf-8"));
+  // ─── Step 1: Generate AI Style ─────────────────
+  if (!SKIP_STYLE) {
+    run("node scripts/generate-style.js", "Step 1/4 — AI Style Generation (Gemini)");
+  } else {
+    console.log("\n⏭ Skipping style generation (--skip-style)");
+  }
+
+  // ─── Step 2: Generate Audio ────────────────────
+  if (!SKIP_AUDIO) {
+    run("node scripts/generate-audio.js", "Step 2/4 — Generating Audio (ElevenLabs TTS)");
+  } else {
+    console.log("\n⏭ Skipping audio generation (--skip-audio)");
+  }
+
+  // Load content
+  const contentPath = fs.existsSync(STYLED_PATH) ? STYLED_PATH : DAILY_PATH;
+  const content = JSON.parse(fs.readFileSync(contentPath, "utf-8"));
   console.log(`\n📄 Title: ${content.title}`);
+  console.log(`🎨 Theme: ${content.theme || "default"}`);
   console.log(`📊 Facts: ${content.facts.length}`);
   console.log(`📅 Date: ${getDateStr()}`);
 
-  // ─── Step 1: Generate Audio ──────────────────────────────
-  if (!SKIP_AUDIO) {
-    run("node scripts/generate-audio.js", "Step 1/4 — Generating Audio (ElevenLabs TTS)");
-  } else {
-    console.log("\n⏭️  Skipping audio generation (--skip-audio)");
-  }
-
-  // Check if audio timing exists
+  // Audio timing
   const timingPath = path.join(AUDIO_DIR, "timing.json");
   let audioTimings = null;
   let hasAudio = false;
-
   if (fs.existsSync(timingPath)) {
     audioTimings = JSON.parse(fs.readFileSync(timingPath, "utf-8"));
     hasAudio = true;
-    console.log(`\n🎙️  Audio timing loaded: ${audioTimings.totalDuration.toFixed(2)}s total`);
+    console.log(`🎙 Audio: ${audioTimings.totalDuration.toFixed(2)}s`);
   } else {
-    console.log("\n⚠️  No audio timing found — rendering video without audio");
+    console.log("⚠ No audio — rendering silent video");
   }
 
-  // ─── Step 2: Calculate video duration ─────────────────────
+  // ─── Step 3: Render ────────────────────────────
   const FPS = 60;
   const SECONDS_PER_FACT = 5;
   const HOOK_SECONDS = 3;
   const OUTRO_SECONDS = 3;
 
-  // If we have audio, use audio duration; otherwise use defaults
   let totalDurationSec;
   if (hasAudio) {
-    totalDurationSec = Math.ceil(audioTimings.totalDuration) + 1; // +1s buffer
+    totalDurationSec = Math.ceil(audioTimings.totalDuration) + 1;
   } else {
     totalDurationSec = HOOK_SECONDS + content.facts.length * SECONDS_PER_FACT + OUTRO_SECONDS;
   }
 
   const totalFrames = totalDurationSec * FPS;
-  console.log(`🎬 Video: ${totalDurationSec}s @ ${FPS}fps = ${totalFrames} frames`);
+  console.log(`🎬 ${totalDurationSec}s @ ${FPS}fps = ${totalFrames} frames`);
 
-  // ─── Step 3: Render with Remotion ────────────────────────
   const videoOnlyPath = path.join(OUTPUT_DIR, "video-only.mp4");
-  const inputPropsJson = JSON.stringify({
-    content,
-    fps: FPS,
+  const propsPath = path.join(OUTPUT_DIR, "input-props.json");
+  fs.writeFileSync(propsPath, JSON.stringify({
+    content, fps: FPS,
     secondsPerFact: SECONDS_PER_FACT,
     hookSeconds: HOOK_SECONDS,
     outroSeconds: OUTRO_SECONDS,
     audioTimings,
-  });
-
-  // Write props to temp file to avoid shell escaping issues
-  const propsPath = path.join(OUTPUT_DIR, "input-props.json");
-  fs.writeFileSync(propsPath, inputPropsJson);
+  }));
 
   run(
     `npx remotion render ${COMPOSITION_ID} "${videoOnlyPath}" --props="${propsPath}" --codec=h264 --image-format=jpeg --frames=0-${totalFrames - 1}`,
-    "Step 2/4 — Rendering Video (Remotion)"
+    "Step 3/4 — Rendering Video (Remotion 60fps)"
   );
 
-  // ─── Step 4: Merge Audio + Video ─────────────────────────
-  const finalOutputPath = path.join(
-    OUTPUT_DIR,
-    `cricket-shorts-${getDateStr()}.mp4`
-  );
+  // ─── Step 4: Merge ─────────────────────────────
+  const finalPath = path.join(OUTPUT_DIR, `cricket-shorts-${getDateStr()}.mp4`);
+  const audioFile = path.join(AUDIO_DIR, "full-narration.mp3");
 
-  const fullAudioPath = path.join(AUDIO_DIR, "full-narration.mp3");
-
-  if (hasAudio && fs.existsSync(fullAudioPath)) {
+  if (hasAudio && fs.existsSync(audioFile)) {
     run(
-      `ffmpeg -y -i "${videoOnlyPath}" -i "${fullAudioPath}" -c:v copy -c:a aac -b:a 192k -shortest "${finalOutputPath}"`,
-      "Step 3/4 — Merging Audio + Video (ffmpeg)"
+      `ffmpeg -y -i "${videoOnlyPath}" -i "${audioFile}" -c:v copy -c:a aac -b:a 192k -shortest "${finalPath}"`,
+      "Step 4/4 — Merging Audio + Video"
     );
-
-    // Clean up video-only file
     fs.unlinkSync(videoOnlyPath);
   } else {
-    // No audio — just rename
-    fs.renameSync(videoOnlyPath, finalOutputPath);
+    fs.renameSync(videoOnlyPath, finalPath);
   }
 
-  // ─── Step 4: Summary ─────────────────────────────────────
-  const stats = fs.statSync(finalOutputPath);
-  const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+  const sizeMB = (fs.statSync(finalPath).size / (1024 * 1024)).toFixed(2);
 
   console.log("\n" + "═".repeat(50));
   console.log("✅ RENDER COMPLETE!");
   console.log("═".repeat(50));
-  console.log(`📁 Output: ${finalOutputPath}`);
-  console.log(`📊 Size: ${sizeMB} MB`);
-  console.log(`⏱️  Duration: ${totalDurationSec}s`);
-  console.log(`🎬 Frames: ${totalFrames}`);
+  console.log(`📁 ${finalPath}`);
+  console.log(`📊 ${sizeMB} MB | ${totalDurationSec}s | ${totalFrames} frames | ${FPS}fps`);
+  console.log(`🎨 Theme: ${content.theme || "default"}`);
   console.log(`🔊 Audio: ${hasAudio ? "Yes" : "No"}`);
   console.log("═".repeat(50));
 }
 
 main().catch((err) => {
-  console.error("\n❌ Render pipeline failed:", err.message);
+  console.error("\n❌ Pipeline failed:", err.message);
   process.exit(1);
 });

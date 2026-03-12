@@ -7,14 +7,102 @@ import {
   spring,
   Easing,
 } from "remotion";
+import { PremiumIcon } from "./PremiumIcon";
+
+interface ThemeColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+  bg: string;
+  glow: string;
+}
 
 interface FactCardProps {
   rank: number;
   heading: string;
   text: string;
   highlight: string;
-  emoji: string;
+  icon: string;
   totalFacts: number;
+  animation?: string;
+  themeColors?: ThemeColors;
+}
+
+// ─── Animation Variants ──────────────────────────────────────
+function useEntrance(
+  variant: string,
+  frame: number,
+  fps: number
+): { transform: string; opacity: number; filter: string } {
+  const progress = spring({
+    frame,
+    fps,
+    config: { damping: 8, stiffness: 60, mass: 0.7 },
+  });
+
+  switch (variant) {
+    case "slideLeft": {
+      const x = interpolate(progress, [0, 1], [-600, 0]);
+      const rotate = interpolate(progress, [0, 1], [-8, 0]);
+      return {
+        transform: `translateX(${x}px) rotate(${rotate}deg) scale(${0.8 + progress * 0.2})`,
+        opacity: progress,
+        filter: `blur(${(1 - progress) * 12}px)`,
+      };
+    }
+    case "zoomIn": {
+      const s = interpolate(progress, [0, 1], [0.2, 1]);
+      const rot = interpolate(progress, [0, 1], [15, 0]);
+      return {
+        transform: `scale(${s}) rotate(${rot}deg)`,
+        opacity: interpolate(progress, [0, 0.3], [0, 1], { extrapolateRight: "clamp" }),
+        filter: `blur(${(1 - progress) * 20}px)`,
+      };
+    }
+    case "flipIn": {
+      const rotX = interpolate(progress, [0, 1], [90, 0]);
+      return {
+        transform: `perspective(1000px) rotateX(${rotX}deg) scale(${progress})`,
+        opacity: interpolate(progress, [0, 0.2], [0, 1], { extrapolateRight: "clamp" }),
+        filter: `blur(${(1 - progress) * 8}px)`,
+      };
+    }
+    case "fadeUp": {
+      const y = interpolate(progress, [0, 1], [200, 0]);
+      return {
+        transform: `translateY(${y}px) scale(${0.9 + progress * 0.1})`,
+        opacity: progress,
+        filter: "none",
+      };
+    }
+    case "bounceIn": {
+      const bounce = spring({
+        frame,
+        fps,
+        config: { damping: 4, stiffness: 120, mass: 0.5 },
+      });
+      return {
+        transform: `scale(${bounce}) rotate(${(1 - bounce) * -10}deg)`,
+        opacity: interpolate(bounce, [0, 0.2], [0, 1], { extrapolateRight: "clamp" }),
+        filter: "none",
+      };
+    }
+    case "spiralIn": {
+      const rot = interpolate(progress, [0, 1], [360, 0]);
+      const s = interpolate(progress, [0, 1], [0, 1]);
+      return {
+        transform: `rotate(${rot}deg) scale(${s})`,
+        opacity: interpolate(progress, [0, 0.3], [0, 1], { extrapolateRight: "clamp" }),
+        filter: `blur(${(1 - progress) * 15}px)`,
+      };
+    }
+    default:
+      return {
+        transform: `translateY(${(1 - progress) * 150}px)`,
+        opacity: progress,
+        filter: "none",
+      };
+  }
 }
 
 export const FactCard: React.FC<FactCardProps> = ({
@@ -22,52 +110,38 @@ export const FactCard: React.FC<FactCardProps> = ({
   heading,
   text,
   highlight,
-  emoji,
+  icon,
   totalFacts,
+  animation = "fadeUp",
+  themeColors,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // ─── Color palette per rank ────────────────────
-  const palettes: Record<number, { primary: string; glow: string; bg: string }> = {
-    1: { primary: "#FFD700", glow: "rgba(255,215,0,0.6)", bg: "rgba(255,215,0,0.08)" },
-    2: { primary: "#FF6B35", glow: "rgba(255,107,53,0.6)", bg: "rgba(255,107,53,0.08)" },
-    3: { primary: "#00E676", glow: "rgba(0,230,118,0.6)", bg: "rgba(0,230,118,0.08)" },
-    4: { primary: "#448AFF", glow: "rgba(68,138,255,0.6)", bg: "rgba(68,138,255,0.08)" },
-    5: { primary: "#E040FB", glow: "rgba(224,64,251,0.6)", bg: "rgba(224,64,251,0.08)" },
+  // Default theme
+  const pal = themeColors || {
+    primary: "#FFD700",
+    secondary: "#FF8C00",
+    accent: "#FFA500",
+    bg: "rgba(255,215,0,0.08)",
+    glow: "rgba(255,215,0,0.6)",
   };
-  const pal = palettes[rank] || palettes[1];
 
-  // ─── Giant rank number: 3D fly-in from left ────
+  // ─── Card entrance animation (dynamic) ─────────
+  const entrance = useEntrance(animation, Math.max(0, frame - 8), fps);
+
+  // ─── Rank badge spring ─────────────────────────
   const rankSpring = spring({
     frame,
     fps,
     config: { damping: 10, stiffness: 50, mass: 1.2 },
   });
-  const rankX = interpolate(rankSpring, [0, 1], [-400, 0]);
-  const rankRotateZ = interpolate(rankSpring, [0, 1], [-30, -8]);
-  const rankBlur = interpolate(rankSpring, [0, 0.5], [20, 0], {
-    extrapolateRight: "clamp",
-  });
-  // Subtle float after landing
   const rankFloat = Math.sin(frame * 0.04) * 5;
 
-  // ─── Card: slide up + scale with elastic ───────
-  const cardSpring = spring({
-    frame: Math.max(0, frame - 8),
-    fps,
-    config: { damping: 7, stiffness: 70, mass: 0.7 },
-  });
-  const cardY = interpolate(cardSpring, [0, 1], [250, 0]);
-  const cardScale = interpolate(cardSpring, [0, 1], [0.85, 1]);
-  const cardOpacity = interpolate(cardSpring, [0, 0.2], [0, 1], {
-    extrapolateRight: "clamp",
-  });
-
-  // ─── Card border glow rotation ─────────────────
+  // ─── Border glow rotation ─────────────────────
   const borderAngle = (frame * 2) % 360;
 
-  // ─── Heading: letter-by-letter reveal ──────────
+  // ─── Heading: letter-by-letter ─────────────────
   const headingChars = heading.split("");
   const charsRevealed = interpolate(
     frame,
@@ -76,46 +150,40 @@ export const FactCard: React.FC<FactCardProps> = ({
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
-  // ─── Underline: grow with bounce ───────────────
+  // ─── Underline spring ─────────────────────────
   const underlineSpring = spring({
     frame: Math.max(0, frame - 20),
     fps,
     config: { damping: 12, stiffness: 100 },
   });
 
-  // ─── Highlight number: count-up + scale pulse ──
+  // ─── Number count-up ──────────────────────────
   const highlightNum = parseFloat(highlight.replace(/[^0-9.]/g, ""));
   const isNumeric = !isNaN(highlightNum);
-  const countEasing = Easing.out(Easing.cubic);
   const countRaw = interpolate(frame, [25, fps * 2.5], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const countProgress = countEasing(countRaw);
-  const currentNum = isNumeric
-    ? Math.round(highlightNum * countProgress)
-    : 0;
+  const countProgress = Easing.out(Easing.cubic)(countRaw);
+  const currentNum = isNumeric ? Math.round(highlightNum * countProgress) : 0;
   const displayNum = isNumeric ? currentNum.toLocaleString() : highlight;
   const highlightSuffix = isNumeric ? highlight.replace(/[0-9.,]/g, "").trim() : "";
-
-  // Number lands with a pulse
   const numLanded = countRaw >= 0.99;
   const numPulse = numLanded
     ? 1 + Math.sin((frame - fps * 2.5) * 0.3) * 0.03
     : interpolate(countRaw, [0, 1], [0.7, 1]);
-
-  // ─── Highlight glow ───────────────────────────
   const glowPulse = interpolate(Math.sin(frame * 0.06), [-1, 1], [15, 45]);
 
-  // ─── Emoji: spring bounce-in from 0 ────────────
-  const emojiSpring = spring({
+  // ─── Icon entrance ────────────────────────────
+  const iconSpring = spring({
     frame: Math.max(0, frame - fps * 2.8),
     fps,
     config: { damping: 5, stiffness: 120, mass: 0.5 },
   });
-  const emojiRotate = interpolate(emojiSpring, [0, 1], [180, 0]);
+  const iconRotate = interpolate(iconSpring, [0, 1], [180, 0]);
+  const iconFloat = Math.sin(frame * 0.06) * 4;
 
-  // ─── Description text: fade in line by line ────
+  // ─── Description fade ─────────────────────────
   const descOpacity = interpolate(frame, [fps * 1.5, fps * 2], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -126,7 +194,7 @@ export const FactCard: React.FC<FactCardProps> = ({
     easing: Easing.out(Easing.cubic),
   });
 
-  // ─── Sparkle particles around highlight ────────
+  // ─── Sparkle ring around stat ──────────────────
   const sparkles = Array.from({ length: 12 }, (_, i) => {
     const angle = (i / 12) * Math.PI * 2 + frame * 0.05;
     const dist = 60 + Math.sin(frame * 0.08 + i) * 20;
@@ -156,9 +224,9 @@ export const FactCard: React.FC<FactCardProps> = ({
           fontWeight: 900,
           fontFamily: "'Outfit', sans-serif",
           color: pal.primary,
-          opacity: 0.07,
-          transform: `translateX(${rankX}px) translateY(${rankFloat}px) rotate(${rankRotateZ}deg)`,
-          filter: `blur(${rankBlur}px)`,
+          opacity: 0.05,
+          transform: `translateX(${(1 - rankSpring) * -400}px) translateY(${rankFloat}px) rotate(-8deg)`,
+          filter: `blur(${(1 - rankSpring) * 20}px)`,
           lineHeight: 1,
           userSelect: "none",
         }}
@@ -166,27 +234,21 @@ export const FactCard: React.FC<FactCardProps> = ({
         #{rank}
       </div>
 
-      {/* Main card container */}
+      {/* Animated card container */}
       <div
         style={{
-          transform: `translateY(${cardY}px) scale(${cardScale})`,
-          opacity: cardOpacity,
+          transform: entrance.transform,
+          opacity: entrance.opacity,
+          filter: entrance.filter,
           width: "100%",
           maxWidth: "980px",
         }}
       >
         {/* Rank badge */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
-            marginBottom: "24px",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
           <div
             style={{
-              background: `linear-gradient(135deg, ${pal.primary}, ${pal.primary}CC)`,
+              background: `linear-gradient(135deg, ${pal.primary}, ${pal.secondary})`,
               color: "#000",
               fontSize: "34px",
               fontWeight: 900,
@@ -199,14 +261,7 @@ export const FactCard: React.FC<FactCardProps> = ({
           >
             #{rank}
           </div>
-          <div
-            style={{
-              fontSize: "24px",
-              color: "rgba(255,255,255,0.4)",
-              fontFamily: "'Inter', sans-serif",
-              fontWeight: 500,
-            }}
-          >
+          <div style={{ fontSize: "24px", color: "rgba(255,255,255,0.4)", fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>
             of {totalFacts}
           </div>
         </div>
@@ -214,17 +269,13 @@ export const FactCard: React.FC<FactCardProps> = ({
         {/* Glassmorphism card */}
         <div
           style={{
-            background: `linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))`,
+            background: "linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
             backdropFilter: "blur(24px)",
             WebkitBackdropFilter: "blur(24px)",
             borderRadius: "28px",
-            border: `1.5px solid rgba(255,255,255,0.1)`,
+            border: "1.5px solid rgba(255,255,255,0.1)",
             padding: "44px",
-            boxShadow: `
-              0 12px 60px rgba(0,0,0,0.5),
-              inset 0 1px 0 rgba(255,255,255,0.12),
-              0 0 80px ${pal.bg}
-            `,
+            boxShadow: `0 12px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 80px ${pal.bg}`,
             position: "relative",
             overflow: "hidden",
           }}
@@ -233,17 +284,14 @@ export const FactCard: React.FC<FactCardProps> = ({
           <div
             style={{
               position: "absolute",
-              top: -2,
-              left: -2,
-              right: -2,
-              bottom: -2,
+              top: -2, left: -2, right: -2, bottom: -2,
               borderRadius: "30px",
               background: `conic-gradient(from ${borderAngle}deg, transparent 0%, ${pal.primary}33 8%, transparent 16%)`,
               zIndex: -1,
             }}
           />
 
-          {/* Heading with letter reveal */}
+          {/* Heading: letter reveal */}
           <div style={{ marginBottom: "28px" }}>
             <div
               style={{
@@ -278,7 +326,6 @@ export const FactCard: React.FC<FactCardProps> = ({
                 );
               })}
             </div>
-            {/* Animated underline */}
             <div
               style={{
                 height: "4px",
@@ -291,17 +338,8 @@ export const FactCard: React.FC<FactCardProps> = ({
             />
           </div>
 
-          {/* Highlight number with sparkles */}
-          <div
-            style={{
-              position: "relative",
-              marginBottom: "24px",
-              display: "flex",
-              alignItems: "baseline",
-              gap: "10px",
-            }}
-          >
-            {/* Sparkle particles */}
+          {/* Highlight + Icon */}
+          <div style={{ position: "relative", marginBottom: "24px", display: "flex", alignItems: "center", gap: "16px" }}>
             {sparkles.map((s, i) => (
               <div
                 key={i}
@@ -325,11 +363,7 @@ export const FactCard: React.FC<FactCardProps> = ({
                 fontWeight: 900,
                 fontFamily: "'Outfit', sans-serif",
                 color: pal.primary,
-                textShadow: `
-                  0 0 ${glowPulse}px ${pal.glow},
-                  0 0 ${glowPulse * 2}px ${pal.bg},
-                  0 4px 25px rgba(0,0,0,0.7)
-                `,
+                textShadow: `0 0 ${glowPulse}px ${pal.glow}, 0 0 ${glowPulse * 2}px ${pal.bg}, 0 4px 25px rgba(0,0,0,0.7)`,
                 lineHeight: 1,
                 transform: `scale(${numPulse})`,
                 display: "inline-block",
@@ -338,37 +372,30 @@ export const FactCard: React.FC<FactCardProps> = ({
               {displayNum}
             </span>
             {highlightSuffix && (
-              <span
-                style={{
-                  fontSize: "42px",
-                  fontWeight: 700,
-                  fontFamily: "'Outfit', sans-serif",
-                  color: `${pal.primary}CC`,
-                  opacity: countRaw > 0.3 ? 1 : 0,
-                }}
-              >
+              <span style={{ fontSize: "42px", fontWeight: 700, fontFamily: "'Outfit', sans-serif", color: `${pal.primary}CC`, opacity: countRaw > 0.3 ? 1 : 0 }}>
                 {highlightSuffix}
               </span>
             )}
-            <span
+
+            {/* Premium Icon instead of emoji */}
+            <div
               style={{
-                fontSize: "72px",
-                transform: `scale(${emojiSpring}) rotate(${emojiRotate}deg)`,
+                transform: `scale(${iconSpring}) rotate(${iconRotate}deg) translateY(${iconFloat}px)`,
                 display: "inline-block",
-                filter: `drop-shadow(0 0 10px ${pal.glow})`,
+                marginLeft: "8px",
               }}
             >
-              {emoji}
-            </span>
+              <PremiumIcon name={icon || "star"} size={72} color={pal.primary} glow={pal.glow} />
+            </div>
           </div>
 
-          {/* Description text */}
+          {/* Description */}
           <div
             style={{
               fontSize: "32px",
               fontWeight: 400,
               fontFamily: "'Inter', sans-serif",
-              color: "rgba(255, 255, 255, 0.88)",
+              color: "rgba(255,255,255,0.88)",
               lineHeight: 1.55,
               textShadow: "0 1px 10px rgba(0,0,0,0.6)",
               opacity: descOpacity,

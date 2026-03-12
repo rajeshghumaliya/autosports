@@ -1,7 +1,13 @@
 import { Composition } from "remotion";
 import { CricketVideo } from "./CricketVideo";
 
-import dailyContent from "../content/daily.json";
+// Try styled.json first (AI-enriched), fall back to daily.json
+let contentData: any;
+try {
+  contentData = require("../content/styled.json");
+} catch {
+  contentData = require("../content/daily.json");
+}
 
 const FPS = 60;
 const SECONDS_PER_FACT = 5;
@@ -10,7 +16,7 @@ const OUTRO_SECONDS = 3;
 
 const totalDuration =
   HOOK_SECONDS +
-  dailyContent.facts.length * SECONDS_PER_FACT +
+  contentData.facts.length * SECONDS_PER_FACT +
   OUTRO_SECONDS;
 
 export const RemotionRoot: React.FC = () => {
@@ -24,7 +30,7 @@ export const RemotionRoot: React.FC = () => {
         width={1080}
         height={1920}
         defaultProps={{
-          content: dailyContent,
+          content: contentData,
           fps: FPS,
           secondsPerFact: SECONDS_PER_FACT,
           hookSeconds: HOOK_SECONDS,

@@ -3,11 +3,12 @@
  * ------------------
  * Calls ElevenLabs TTS API to generate narration for each fact.
  * Rotates between 3 API keys based on day of month.
+ * Uses dynamic voice emotions from styled.json (AI-generated).
  * Outputs audio segments + timing JSON.
  *
  * Usage:
  *   node scripts/generate-audio.js
- *   node scripts/generate-audio.js --dry-run   (skip API calls)
+ *   node scripts/generate-audio.js --dry-run
  */
 
 import fs from "fs";
@@ -20,13 +21,17 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..");
 
 // ─── Config ──────────────────────────────────────────────────
-const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel — clear, natural English
+const VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
 const MODEL_ID = "eleven_monolingual_v1";
 const OUTPUT_DIR = path.join(ROOT, "public", "audio");
-const CONTENT_PATH = path.join(ROOT, "content", "daily.json");
 const DRY_RUN = process.argv.includes("--dry-run");
 
-// ─── API Key Rotation (3 keys, rotates by day of month) ─────
+// Try styled.json first (has AI voice emotions), fallback to daily.json
+const STYLED_PATH = path.join(ROOT, "content", "styled.json");
+const DAILY_PATH = path.join(ROOT, "content", "daily.json");
+const CONTENT_PATH = fs.existsSync(STYLED_PATH) ? STYLED_PATH : DAILY_PATH;
+
+// ─── API Key Rotation ────────────────────────────────────────
 function getApiKey() {
   const keys = [
     process.env.ELEVENLABS_KEY_1,
@@ -35,20 +40,16 @@ function getApiKey() {
   ].filter(Boolean);
 
   if (keys.length === 0) {
-    throw new Error(
-      "No ElevenLabs API keys found! Set ELEVENLABS_KEY_1, ELEVENLABS_KEY_2, ELEVENLABS_KEY_3 as environment variables."
-    );
+    throw new Error("No ElevenLabs API keys found!");
   }
 
   const dayOfMonth = new Date().getDate();
   const keyIndex = dayOfMonth % keys.length;
-  console.log(
-    `🔑 Using API key ${keyIndex + 1} of ${keys.length} (day ${dayOfMonth})`
-  );
+  console.log(`🔑 Using API key ${keyIndex + 1} of ${keys.length} (day ${dayOfMonth})`);
   return keys[keyIndex];
 }
 
-// ─── Build narration script from content ─────────────────────
+// ─── Build narration with dynamic transitions ────────────────
 function buildNarrationSegments(content) {
   const segments = [];
 
@@ -57,10 +58,11 @@ function buildNarrationSegments(content) {
     id: "hook",
     text: content.hook,
     type: "hook",
+    voiceSettings: { stability: 0.25, similarity_boost: 0.85, style: 0.9, use_speaker_boost: true },
   });
 
-  // Facts (with transition phrases)
-  const transitions = [
+  // Facts with AI transition phrases or defaults
+  const defaultTransitions = [
     "Coming in at number",
     "At number",
     "Next up, number",
@@ -70,30 +72,43 @@ function buildNarrationSegments(content) {
 
   content.facts.forEach((fact, i) => {
     const isLast = i === content.facts.length - 1;
-    const transition = isLast
-      ? transitions[transitions.length - 1]
-      : `${transitions[i % (transitions.length - 1)]} ${fact.rank}.`;
+
+    // Use AI-generated narration transition if available
+    const transition = fact.narrationTransition
+      ? fact.narrationTransition
+      : isLast
+        ? defaultTransitions[defaultTransitions.length - 1]
+        : `${defaultTransitions[i % (defaultTransitions.length - 1)]} ${fact.rank}.`;
+
+    // Use AI voice emotions if available, otherwise defaults
+    const voiceSettings = fact.voiceEmotion && typeof fact.voiceEmotion === "object"
+      ? { ...fact.voiceEmotion, use_speaker_boost: true }
+      : isLast
+        ? { stability: 0.2, similarity_boost: 0.9, style: 1.0, use_speaker_boost: true }
+        : { stability: 0.4, similarity_boost: 0.8, style: 0.6, use_speaker_boost: true };
 
     segments.push({
       id: `fact-${i}`,
       text: `${transition} ${fact.heading}. ${fact.text}`,
       type: "fact",
       rank: fact.rank,
+      voiceSettings,
     });
   });
 
   // Outro
   segments.push({
     id: "outro",
-    text: content.outro.replace(/🔥|!/g, ""),
+    text: content.outro.replace(/[🔥!]/g, "").trim(),
     type: "outro",
+    voiceSettings: { stability: 0.35, similarity_boost: 0.8, style: 0.7, use_speaker_boost: true },
   });
 
   return segments;
 }
 
-// ─── Call ElevenLabs TTS API ─────────────────────────────────
-async function generateSpeech(text, outputPath, apiKey) {
+// ─── Call ElevenLabs TTS with dynamic voice settings ─────────
+async function generateSpeech(text, outputPath, apiKey, voiceSettings) {
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
 
   const response = await fetch(url, {
@@ -106,20 +121,13 @@ async function generateSpeech(text, outputPath, apiKey) {
     body: JSON.stringify({
       text,
       model_id: MODEL_ID,
-      voice_settings: {
-        stability: 0.4,
-        similarity_boost: 0.8,
-        style: 0.6,
-        use_speaker_boost: true,
-      },
+      voice_settings: voiceSettings,
     }),
   });
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(
-      `ElevenLabs API error ${response.status}: ${errorBody}`
-    );
+    throw new Error(`ElevenLabs API error ${response.status}: ${errorBody}`);
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
@@ -127,7 +135,7 @@ async function generateSpeech(text, outputPath, apiKey) {
   console.log(`  ✅ Saved: ${path.basename(outputPath)} (${buffer.length} bytes)`);
 }
 
-// ─── Get audio duration using ffprobe ────────────────────────
+// ─── Get audio duration ──────────────────────────────────────
 function getAudioDuration(filePath) {
   try {
     const result = execSync(
@@ -136,17 +144,14 @@ function getAudioDuration(filePath) {
     ).trim();
     return parseFloat(result);
   } catch {
-    // Fallback: estimate from text length (~150 words/min narration)
-    console.log(`  ⚠️  ffprobe not available, estimating duration`);
+    console.log(`  ⚠ ffprobe unavailable, estimating duration`);
     return null;
   }
 }
 
-// ─── Estimate word-level timing ──────────────────────────────
 function estimateWordTimings(text, startTime, duration) {
   const words = text.split(/\s+/);
   const timePerWord = duration / words.length;
-
   return words.map((word, i) => ({
     word,
     start: startTime + i * timePerWord,
@@ -156,120 +161,85 @@ function estimateWordTimings(text, startTime, duration) {
 
 // ─── Main ────────────────────────────────────────────────────
 async function main() {
-  console.log("🎙️  Cricket Shorts — Audio Generator");
-  console.log("━".repeat(45));
+  console.log("🎙 Cricket Shorts — Audio Generator");
+  console.log("━".repeat(50));
 
-  // Load content
   const content = JSON.parse(fs.readFileSync(CONTENT_PATH, "utf-8"));
-  console.log(`📄 Loaded: ${content.title}`);
+  const isStyled = CONTENT_PATH.includes("styled");
+  console.log(`📄 Source: ${isStyled ? "styled.json (AI-enriched)" : "daily.json (manual)"}`);
+  console.log(`📄 Title: ${content.title}`);
   console.log(`📊 Facts: ${content.facts.length}`);
 
-  // Build segments
   const segments = buildNarrationSegments(content);
   console.log(`🎬 Segments: ${segments.length}\n`);
 
-  // Ensure output directory
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
   if (DRY_RUN) {
     console.log("🏃 DRY RUN — Skipping API calls\n");
     segments.forEach((seg) => {
-      console.log(`  [${seg.id}] "${seg.text.substring(0, 60)}..."`);
+      console.log(`  [${seg.id}] voice=${JSON.stringify(seg.voiceSettings)}`);
+      console.log(`           "${seg.text.substring(0, 60)}..."\n`);
     });
 
-    // Generate dummy timing
     const timing = {
       segments: segments.map((seg, i) => ({
-        id: seg.id,
-        type: seg.type,
-        start: i * 5,
-        end: (i + 1) * 5,
-        duration: 5,
-        text: seg.text,
-        words: estimateWordTimings(seg.text, i * 5, 5),
+        id: seg.id, type: seg.type,
+        start: i * 5, end: (i + 1) * 5, duration: 5,
+        text: seg.text, words: estimateWordTimings(seg.text, i * 5, 5),
       })),
       totalDuration: segments.length * 5,
     };
-    fs.writeFileSync(
-      path.join(OUTPUT_DIR, "timing.json"),
-      JSON.stringify(timing, null, 2)
-    );
-    console.log("\n✅ Dry run complete! timing.json generated.");
+    fs.writeFileSync(path.join(OUTPUT_DIR, "timing.json"), JSON.stringify(timing, null, 2));
+    console.log("✅ Dry run complete!");
     return;
   }
 
-  // Get API key
   const apiKey = getApiKey();
-
-  // Generate audio for each segment
   const timingData = [];
   let currentTime = 0;
 
   for (const seg of segments) {
     const outputPath = path.join(OUTPUT_DIR, `${seg.id}.mp3`);
-    console.log(`🔊 Generating: ${seg.id}`);
-    console.log(`   "${seg.text.substring(0, 80)}..."`);
+    console.log(`🔊 ${seg.id} [${seg.type}]`);
+    console.log(`   Voice: stability=${seg.voiceSettings.stability} style=${seg.voiceSettings.style}`);
+    console.log(`   "${seg.text.substring(0, 70)}..."`);
 
-    await generateSpeech(seg.text, outputPath, apiKey);
+    await generateSpeech(seg.text, outputPath, apiKey, seg.voiceSettings);
 
-    // Get duration
     let duration = getAudioDuration(outputPath);
     if (!duration) {
-      // Estimate: ~2.5 words per second for narration
-      const wordCount = seg.text.split(/\s+/).length;
-      duration = wordCount / 2.5;
+      duration = seg.text.split(/\s+/).length / 2.5;
     }
 
     timingData.push({
-      id: seg.id,
-      type: seg.type,
-      start: currentTime,
-      end: currentTime + duration,
-      duration,
-      text: seg.text,
-      words: estimateWordTimings(seg.text, currentTime, duration),
+      id: seg.id, type: seg.type,
+      start: currentTime, end: currentTime + duration, duration,
+      text: seg.text, words: estimateWordTimings(seg.text, currentTime, duration),
     });
-
     currentTime += duration;
-    console.log(`   ⏱️  Duration: ${duration.toFixed(2)}s\n`);
+    console.log(`   ⏱ ${duration.toFixed(2)}s\n`);
   }
 
-  // Concatenate all segments into one audio file
-  console.log("🔗 Concatenating audio segments...");
+  // Concatenate
+  console.log("🔗 Concatenating segments...");
   const listFile = path.join(OUTPUT_DIR, "concat-list.txt");
-  const concatEntries = timingData
-    .map((seg) => `file '${seg.id}.mp3'`)
-    .join("\n");
-  fs.writeFileSync(listFile, concatEntries);
+  fs.writeFileSync(listFile, timingData.map((s) => `file '${s.id}.mp3'`).join("\n"));
 
   try {
-    execSync(
-      `ffmpeg -y -f concat -safe 0 -i "${listFile}" -c copy "${path.join(OUTPUT_DIR, "full-narration.mp3")}"`,
-      { cwd: OUTPUT_DIR, stdio: "inherit" }
-    );
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${listFile}" -c copy "${path.join(OUTPUT_DIR, "full-narration.mp3")}"`, { cwd: OUTPUT_DIR, stdio: "inherit" });
     console.log("✅ Created full-narration.mp3");
   } catch {
-    console.log("⚠️  ffmpeg concat failed — segments saved individually");
+    console.log("⚠ ffmpeg concat failed — segments saved individually");
   }
 
-  // Save timing data
-  const timing = {
-    segments: timingData,
-    totalDuration: currentTime,
-  };
-  fs.writeFileSync(
-    path.join(OUTPUT_DIR, "timing.json"),
-    JSON.stringify(timing, null, 2)
-  );
+  fs.writeFileSync(path.join(OUTPUT_DIR, "timing.json"), JSON.stringify({ segments: timingData, totalDuration: currentTime }, null, 2));
 
-  console.log("\n" + "━".repeat(45));
-  console.log(`✅ Audio generation complete!`);
-  console.log(`   Total duration: ${currentTime.toFixed(2)}s`);
-  console.log(`   Segments: ${timingData.length}`);
-  console.log(`   Output: ${OUTPUT_DIR}`);
+  console.log("\n" + "━".repeat(50));
+  console.log(`✅ Audio complete! ${currentTime.toFixed(2)}s total, ${timingData.length} segments`);
 }
 
 main().catch((err) => {
-  console.error("❌ Audio generation failed:", err.message);
+  console.error("❌ Failed:", err.message);
   process.exit(1);
 });

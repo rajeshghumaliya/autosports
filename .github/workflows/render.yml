@@ -1,16 +1,19 @@
 name: 🏏 Render Cricket Shorts
 
 on:
-  # Manual trigger
   workflow_dispatch:
     inputs:
       skip_audio:
-        description: "Skip audio generation (use existing audio)"
+        description: "Skip audio generation"
+        required: false
+        default: "false"
+        type: boolean
+      skip_style:
+        description: "Skip AI style generation"
         required: false
         default: "false"
         type: boolean
 
-  # Daily at 6:00 AM UTC (11:30 AM IST)
   schedule:
     - cron: "0 6 * * *"
 
@@ -18,26 +21,22 @@ jobs:
   render:
     name: 🎬 Generate Video
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
-      # ── Checkout ──────────────────────────────────────
-      - name: 📥 Checkout repository
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      # ── Node.js Setup ────────────────────────────────
       - name: 📦 Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "npm"
 
-      # ── Install Dependencies ──────────────────────────
-      - name: 📦 Install npm dependencies
+      - name: 📦 Install dependencies
         run: npm ci
 
-      # ── Install System Dependencies ──────────────────
-      - name: 🔧 Install ffmpeg & Chrome dependencies
+      - name: 🔧 Install ffmpeg & Chrome deps
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg \
@@ -46,8 +45,13 @@ jobs:
             libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 \
             libcairo2 libasound2
 
-      # ── Generate Audio (ElevenLabs TTS) ──────────────
-      - name: 🎙️ Generate voiceover audio
+      - name: 🎨 Generate AI style (Gemini)
+        if: ${{ github.event.inputs.skip_style != 'true' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/generate-style.js
+
+      - name: 🎙️ Generate voiceover (ElevenLabs)
         if: ${{ github.event.inputs.skip_audio != 'true' }}
         env:
           ELEVENLABS_KEY_1: ${{ secrets.ELEVENLABS_KEY_1 }}
@@ -55,30 +59,28 @@ jobs:
           ELEVENLABS_KEY_3: ${{ secrets.ELEVENLABS_KEY_3 }}
         run: node scripts/generate-audio.js
 
-      # ── Render Video ──────────────────────────────────
-      - name: 🎬 Render video with Remotion
+      - name: 🎬 Render video (60fps)
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ELEVENLABS_KEY_1: ${{ secrets.ELEVENLABS_KEY_1 }}
           ELEVENLABS_KEY_2: ${{ secrets.ELEVENLABS_KEY_2 }}
           ELEVENLABS_KEY_3: ${{ secrets.ELEVENLABS_KEY_3 }}
-        run: node scripts/render-video.js ${{ github.event.inputs.skip_audio == 'true' && '--skip-audio' || '' }}
+        run: node scripts/render-video.js --skip-style --skip-audio
 
-      # ── Upload Output ────────────────────────────────
-      - name: 📤 Upload rendered video
+      - name: 📤 Upload video
         uses: actions/upload-artifact@v4
         with:
           name: cricket-shorts-${{ github.run_number }}
           path: output/*.mp4
           retention-days: 30
 
-      # ── Summary ──────────────────────────────────────
-      - name: 📊 Print summary
+      - name: 📊 Summary
         run: |
           echo "## 🏏 Cricket Shorts Rendered! 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| 📅 Date | $(date -u +%Y-%m-%d) |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📁 Output | \`output/\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔊 Audio | ${{ github.event.inputs.skip_audio == 'true' && 'Skipped' || 'Generated' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎨 Style | AI-Generated |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎬 FPS | 60 |" >> $GITHUB_STEP_SUMMARY
           ls -lh output/*.mp4 2>/dev/null | awk '{print "| 📊 Size | " $5 " |"}' >> $GITHUB_STEP_SUMMARY || true
