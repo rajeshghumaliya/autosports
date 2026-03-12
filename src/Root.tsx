@@ -3,7 +3,7 @@ import { CricketVideo } from "./CricketVideo";
 
 import dailyContent from "../content/daily.json";
 
-const FPS = 30;
+const FPS = 60;
 const SECONDS_PER_FACT = 5;
 const HOOK_SECONDS = 3;
 const OUTRO_SECONDS = 3;

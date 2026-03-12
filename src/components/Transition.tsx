@@ -4,57 +4,68 @@ import {
   useCurrentFrame,
   useVideoConfig,
   interpolate,
+  spring,
+  Easing,
 } from "remotion";
 
 export const Transition: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const transitionDuration = Math.round(fps * 0.3);
+  const dur = Math.round(fps * 0.3); // 0.3 seconds at 60fps = 18 frames
+  const mid = dur / 2;
 
-  // Fast wipe from right
-  const wipeX = interpolate(
-    frame,
-    [0, transitionDuration / 2, transitionDuration],
-    [100, 0, -100],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-  );
-
-  const opacity = interpolate(
-    frame,
-    [0, transitionDuration / 2, transitionDuration],
-    [0, 1, 0],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-  );
+  // ─── Multiple diagonal slashes ─────────────────
+  const slashes = [
+    { delay: 0, width: "120%", color: "rgba(255,215,0,0.9)", skew: -15 },
+    { delay: 2, width: "60%", color: "rgba(255,107,53,0.7)", skew: -15 },
+    { delay: 4, width: "30%", color: "rgba(255,255,255,0.4)", skew: -15 },
+  ];
 
   return (
-    <AbsoluteFill style={{ zIndex: 50 }}>
-      {/* Main wipe bar */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          background: "linear-gradient(135deg, #FFD700, #FF6B35)",
-          transform: `translateX(${wipeX}%)`,
-          opacity,
-        }}
-      />
+    <AbsoluteFill style={{ zIndex: 50, overflow: "hidden" }}>
+      {slashes.map((slash, i) => {
+        const adjustedFrame = Math.max(0, frame - slash.delay);
+        const x = interpolate(
+          adjustedFrame,
+          [0, mid, dur - slash.delay],
+          [-120, 0, 120],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+        );
+        const opacity = interpolate(
+          adjustedFrame,
+          [0, mid * 0.5, mid, dur - slash.delay],
+          [0, 1, 1, 0],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+        );
 
-      {/* Secondary line accent */}
-      <div
+        return (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: slash.width,
+              height: "100%",
+              background: `linear-gradient(90deg, transparent, ${slash.color}, transparent)`,
+              transform: `translateX(${x}%) skewX(${slash.skew}deg)`,
+              opacity,
+            }}
+          />
+        );
+      })}
+
+      {/* Flash overlay */}
+      <AbsoluteFill
         style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "8px",
-          height: "100%",
-          background: "#ffffff",
-          transform: `translateX(${wipeX * 1.1}vw)`,
-          opacity: opacity * 0.8,
-          boxShadow: "0 0 30px rgba(255, 255, 255, 0.5)",
+          background: "#fff",
+          opacity: interpolate(
+            frame,
+            [mid - 2, mid, mid + 4],
+            [0, 0.3, 0],
+            { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+          ),
         }}
       />
     </AbsoluteFill>
