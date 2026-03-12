@@ -41,9 +41,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg \
             libnss3 libatk1.0-0 libatk-bridge2.0-0 \
-            libcups2 libdrm2 libxkbcommon0 libxcomposite1 \
+            libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 \
             libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 \
-            libcairo2 libasound2
+            libcairo2 libasound2t64
 
       - name: 🎨 Generate AI style (Gemini)
         if: ${{ github.event.inputs.skip_style != 'true' }}
