@@ -50,7 +50,7 @@ interface ContentData {
   outroAnimation?: string;
 }
 
-interface CricketVideoProps {
+export interface CricketVideoProps {
   content: ContentData;
   fps: number;
   secondsPerFact: number;
