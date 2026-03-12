@@ -22,7 +22,7 @@ const ROOT = path.resolve(__dirname, "..");
 
 // ─── Config ──────────────────────────────────────────────────
 const VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
-const MODEL_ID = "eleven_monolingual_v1";
+const MODEL_ID = "eleven_multilingual_v2";
 const OUTPUT_DIR = path.join(ROOT, "public", "audio");
 const DRY_RUN = process.argv.includes("--dry-run");
 
