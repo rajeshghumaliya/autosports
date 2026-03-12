@@ -1,0 +1,7 @@
+node_modules/
+dist/
+output/
+build/
+public/audio/
+.env
+*.mp4

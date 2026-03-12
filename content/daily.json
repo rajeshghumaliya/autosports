@@ -1,0 +1,47 @@
+{
+  "title": "5 Cricket Records That Will SHOCK You 🤯",
+  "hook": "No one has EVER broken this record...",
+  "facts": [
+    {
+      "rank": 5,
+      "heading": "Most Sixes in ODI History",
+      "player": "chris-gayle",
+      "text": "Chris Gayle smashed 553 sixes across his ODI career, a record no one has come close to breaking.",
+      "highlight": "553",
+      "emoji": "💥"
+    },
+    {
+      "rank": 4,
+      "heading": "Fastest ODI Century",
+      "player": "ab-de-villiers",
+      "text": "AB de Villiers smashed the fastest ODI century in just 31 balls against the West Indies in 2015.",
+      "highlight": "31 Balls",
+      "emoji": "⚡"
+    },
+    {
+      "rank": 3,
+      "heading": "Most International Centuries",
+      "player": "sachin-tendulkar",
+      "text": "Sachin Tendulkar scored 100 international centuries across all formats, a feat no one else has achieved.",
+      "highlight": "100",
+      "emoji": "👑"
+    },
+    {
+      "rank": 2,
+      "heading": "Fastest Ball Ever Bowled",
+      "player": "shoaib-akhtar",
+      "text": "Shoaib Akhtar bowled the fastest delivery in cricket history at 161.3 kilometers per hour in the 2003 World Cup.",
+      "highlight": "161.3 KPH",
+      "emoji": "🔥"
+    },
+    {
+      "rank": 1,
+      "heading": "Most Runs in Test Cricket",
+      "player": "sachin-tendulkar",
+      "text": "Sachin Tendulkar holds the all-time record with 15,921 runs in Test cricket. An absolutely untouchable legacy.",
+      "highlight": "15,921",
+      "emoji": "🏆"
+    }
+  ],
+  "outro": "Follow for more insane cricket facts! 🔥"
+}

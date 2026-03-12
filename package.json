@@ -1,0 +1,24 @@
+{
+  "name": "autosports",
+  "version": "1.0.0",
+  "description": "Automated cricket shorts video generator",
+  "type": "module",
+  "scripts": {
+    "dev": "npx remotion studio",
+    "build": "npx remotion bundle src/index.ts --public-dir public",
+    "render": "node scripts/render-video.js",
+    "generate-audio": "node scripts/generate-audio.js"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.242",
+    "@remotion/player": "4.0.242",
+    "@remotion/renderer": "4.0.242",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "4.0.242"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.7.0"
+  }
+}
