@@ -49,6 +49,15 @@ function getApiKey() {
   return keys[keyIndex];
 }
 
+function stripEmojis(str) {
+  if (!str) return "";
+  // Strip emojis and other non-standard unicode characters
+  return str
+    .replace(/[\u1000-\uFFFF]+/g, '') // remove emojis/symbols
+    .replace(/[^\x00-\x7F]/g, '')     // remove non-ascii
+    .trim();
+}
+
 // ─── Build narration with dynamic transitions ────────────────
 function buildNarrationSegments(content) {
   const segments = [];
@@ -56,7 +65,7 @@ function buildNarrationSegments(content) {
   // Hook
   segments.push({
     id: "hook",
-    text: content.hook,
+    text: stripEmojis(content.hook),
     type: "hook",
     voiceSettings: { stability: 0.25, similarity_boost: 0.85, style: 0.9, use_speaker_boost: true },
   });
@@ -92,7 +101,7 @@ function buildNarrationSegments(content) {
     const headingPart = item.heading ? `${item.heading}. ` : "";
     segments.push({
       id: `fact-${i}`,
-      text: `${transition} ${headingPart}${item.text}`,
+      text: stripEmojis(`${transition} ${headingPart}${item.text}`),
       type: "fact",
       rank: item.rank || items.length - i,
       voiceSettings,
@@ -102,7 +111,7 @@ function buildNarrationSegments(content) {
   // Outro
   segments.push({
     id: "outro",
-    text: content.outro.replace(/[🔥!]/g, "").trim(),
+    text: stripEmojis(content.outro),
     type: "outro",
     voiceSettings: { stability: 0.35, similarity_boost: 0.8, style: 0.7, use_speaker_boost: true },
   });
